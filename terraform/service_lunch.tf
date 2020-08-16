@@ -52,7 +52,7 @@ resource "google_cloud_run_service" "lunch" {
         }
 
         env {
-          name  = "CLOUD_RUN_SERVICE_URL"
+          name  = "WEBHOOK_BASE_URL"
           value = "https://viecco-lunch.${var.domain}"
         }
 

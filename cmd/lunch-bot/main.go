@@ -11,7 +11,7 @@ import (
 func main() {
 	port := os.Getenv("PORT")
 	botCfg := &tgbot.Config{
-		BaseURL:  os.Getenv("CLOUD_RUN_SERVICE_URL"),
+		BaseURL:  os.Getenv("WEBHOOK_BASE_URL"),
 		BotToken: os.Getenv("BOT_TOKEN"),
 	}
 	bot, err := tgbot.NewBot(botCfg)
