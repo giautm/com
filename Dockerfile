@@ -27,6 +27,7 @@ RUN upx -q -9 /bin/service
 FROM scratch
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /bin/service /bin/service
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 
 ENV TZ Asia/Bangkok
 ENV PORT 8080
