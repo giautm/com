@@ -82,6 +82,14 @@ func (s *LunchHandler) parseOptions(text string) (options []string, leadtime tim
 	return options, leadtime
 }
 
+func TimeIn(t time.Time) (time.Time, error) {
+	loc, err := time.LoadLocation("Asia/Bangkok")
+	if err == nil {
+		t = t.In(loc)
+	}
+	return t, err
+}
+
 func (s *LunchHandler) NewLunch(ctx context.Context,
 	chatID int64,
 	msg string,
@@ -103,7 +111,7 @@ func (s *LunchHandler) NewLunch(ctx context.Context,
 		// so We need close poll manually
 		//
 		// https://core.telegram.org/bots/api#sendpoll
-		closeDate := timestamp.Add(hours)
+		closeDate, _ := TimeIn(timestamp.Add(hours))
 		closeDateStr := closeDate.Format("15:04 02/01")
 
 		for idx, pollOptions := range polls {
