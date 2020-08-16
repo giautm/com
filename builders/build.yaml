@@ -1,0 +1,24 @@
+#
+# Builds a container image.
+#
+
+substitutions:
+  _SERVICE:
+  _TAG:
+
+steps:
+- id: 'build'
+  name: 'registry.hub.docker.com/library/docker:18'
+  args: [
+    'build',
+    '--tag', 'gcr.io/${PROJECT_ID}/giautm.dev/viecco/cmd/${_SERVICE}:${_TAG}',
+    '--build-arg', 'SERVICE=${_SERVICE}',
+    '.',
+  ]
+
+- id: 'publish'
+  name: 'registry.hub.docker.com/library/docker:18'
+  args: [
+    'push',
+    'gcr.io/${PROJECT_ID}/giautm.dev/viecco/cmd/${_SERVICE}:${_TAG}',
+  ]

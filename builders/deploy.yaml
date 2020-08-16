@@ -1,0 +1,25 @@
+#
+# Deploys a Cloud Run service.
+#
+
+substitutions:
+  _REGION:
+  _SERVICE:
+  _TAG:
+
+steps:
+- id: 'deploy'
+  name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:293.0.0-alpine'
+  args:
+  - 'bash'
+  - '-eEuo'
+  - 'pipefail'
+  - '-c'
+  - |-
+    gcloud run deploy "${_SERVICE}" \
+      --quiet \
+      --project "${PROJECT_ID}" \
+      --platform "managed" \
+      --region "${_REGION}" \
+      --image "gcr.io/${PROJECT_ID}/giautm.dev/viecco/cmd/${_SERVICE}:${_TAG}" \
+      --no-traffic

@@ -1,0 +1,1 @@
+migrate -database $MYSQL_MIGRATE -path migrations up

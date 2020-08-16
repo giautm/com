@@ -1,0 +1,25 @@
+#
+# Promotes the revision of a service to receive 100% of traffic.
+#
+
+substitutions:
+  _PERCENTAGE: '100'
+  _REGION:
+  _REVISION: 'LATEST'
+  _SERVICE:
+
+steps:
+- id: 'export'
+  name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:293.0.0-alpine'
+  args:
+  - 'bash'
+  - '-eEuo'
+  - 'pipefail'
+  - '-c'
+  - |-
+    gcloud run services update-traffic ${_SERVICE} \
+      --quiet \
+      --project "${PROJECT_ID}" \
+      --platform "managed" \
+      --region "${_REGION}" \
+      --to-revisions "${_REVISION}=${_PERCENTAGE}"
