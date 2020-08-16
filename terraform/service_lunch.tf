@@ -2,14 +2,14 @@
 # Create and deploy the service
 #
 
-resource "google_service_account" "lunch" {
+resource "google_service_account" "lunch-bot" {
   project      = data.google_project.project.project_id
-  account_id   = "viecco-lunch-sa"
+  account_id   = "viecco-lunch-bot-sa"
   display_name = "Viec.Co Lunch Service"
 }
 
-resource "google_service_account_iam_member" "cloudbuild-deploy-lunch" {
-  service_account_id = google_service_account.lunch.id
+resource "google_service_account_iam_member" "cloudbuild-deploy-lunch-bot" {
+  service_account_id = google_service_account.lunch-bot.id
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
 
@@ -18,7 +18,7 @@ resource "google_service_account_iam_member" "cloudbuild-deploy-lunch" {
   ]
 }
 
-# resource "google_secret_manager_secret_iam_member" "lunch" {
+# resource "google_secret_manager_secret_iam_member" "lunch-bot" {
 #   provider = google-beta
 
 #   for_each = toset([
@@ -30,16 +30,16 @@ resource "google_service_account_iam_member" "cloudbuild-deploy-lunch" {
 
 #   secret_id = google_secret_manager_secret.db-secret[each.key].id
 #   role      = "roles/secretmanager.secretAccessor"
-#   member    = "serviceAccount:${google_service_account.lunch.email}"
+#   member    = "serviceAccount:${google_service_account.lunch-bot.email}"
 # }
 
-resource "google_cloud_run_service" "lunch" {
-  name     = "lunch"
+resource "google_cloud_run_service" "lunch-bot" {
+  name     = "lunch-bot"
   location = var.cloudrun_location
 
   template {
     spec {
-      service_account_name = google_service_account.lunch.email
+      service_account_name = google_service_account.lunch-bot.email
 
       containers {
         image = "gcr.io/${data.google_project.project.project_id}/giautm.dev/viecco/cmd/lunch-bot:initial"
@@ -65,7 +65,7 @@ resource "google_cloud_run_service" "lunch" {
         }
 
         dynamic "env" {
-          for_each = lookup(var.service_environment, "lunch", {})
+          for_each = lookup(var.service_environment, "lunch-bot", {})
           content {
             name  = env.key
             value = env.value
@@ -84,7 +84,7 @@ resource "google_cloud_run_service" "lunch" {
 
   depends_on = [
     google_project_service.services["run.googleapis.com"],
-    # google_secret_manager_secret_iam_member.lunch,
+    # google_secret_manager_secret_iam_member.lunch-bot,
     null_resource.build,
   ]
 
@@ -95,7 +95,7 @@ resource "google_cloud_run_service" "lunch" {
   }
 }
 
-# resource "google_cloud_run_domain_mapping" "lunch" {
+# resource "google_cloud_run_domain_mapping" "lunch-bot" {
 #   location = var.cloudrun_location
 #   name     = "viecco-lunch.${var.domain}"
 
@@ -104,16 +104,16 @@ resource "google_cloud_run_service" "lunch" {
 #   }
 
 #   spec {
-#     route_name = google_cloud_run_service.lunch.name
+#     route_name = google_cloud_run_service.lunch-bot.name
 #   }
 
 #   depends_on = [
 #     google_project_service.services["run.googleapis.com"],
-#     google_cloud_run_service.lunch,
+#     google_cloud_run_service.lunch-bot,
 #   ]
 # }
 
-data "google_iam_policy" "lunch-noauth" {
+data "google_iam_policy" "lunch-bot-noauth" {
   binding {
     role = "roles/run.invoker"
     members = [
@@ -123,9 +123,9 @@ data "google_iam_policy" "lunch-noauth" {
 }
 
 resource "google_cloud_run_service_iam_policy" "noauth" {
-  location    = google_cloud_run_service.lunch.location
-  project     = google_cloud_run_service.lunch.project
-  service     = google_cloud_run_service.lunch.name
+  location    = google_cloud_run_service.lunch-bot.location
+  project     = google_cloud_run_service.lunch-bot.project
+  service     = google_cloud_run_service.lunch-bot.name
 
-  policy_data = data.google_iam_policy.lunch-noauth.policy_data
+  policy_data = data.google_iam_policy.lunch-bot-noauth.policy_data
 }
