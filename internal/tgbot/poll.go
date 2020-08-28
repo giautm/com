@@ -33,7 +33,9 @@ func (t *telegramPoll) SendMessage(ctx context.Context, msg string) error {
 }
 
 func (t *telegramPoll) SendPoll(ctx context.Context, question string, options []string) (int, string, error) {
-	reply := tgbotapi.NewPoll(t.msg.Chat.ID, question, options...)
+	chatID := ChatFromContext(ctx)
+
+	reply := tgbotapi.NewPoll(chatID, question, options...)
 	reply.IsAnonymous = false
 	reply.ReplyToMessageID = t.msg.MessageID
 

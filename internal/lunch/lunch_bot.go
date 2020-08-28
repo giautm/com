@@ -3,16 +3,15 @@ package lunch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
-	"giautm.dev/com/internal/tgbot"
+	"giautm.dev/com/internal/lunch/domain"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
@@ -22,64 +21,18 @@ type PollSender interface {
 	SendMessage(ctx context.Context, message string) error
 }
 
-type Service interface {
-	NewLunch(ctx context.Context,
-		chatID int64,
-		msg string,
-		timestamp time.Time,
-		sender PollSender,
-	) error
-}
-
-type Poll struct {
-}
-
-type PollRepo interface {
-	Save(ctx context.Context, poll *Poll)
-}
-
 type LunchHandler struct {
-	pollRepo PollRepo
-
-	cfg *Config
-	bot *tgbotapi.BotAPI
+	groupRepo domain.GroupRepo
+	cfg       *Config
+	bot       *tgbotapi.BotAPI
 }
 
 func NewHandler(cfg *Config, bot *tgbotapi.BotAPI) *LunchHandler {
 	return &LunchHandler{
-		bot: bot,
-		cfg: cfg,
+		bot:       bot,
+		groupRepo: NewMemoryGroupRepo(),
+		cfg:       cfg,
 	}
-}
-
-func (s *LunchHandler) parseOptions(text string) (options []string, leadtime time.Duration) {
-	leadtime = 3 * time.Hour
-
-	firstNonEmpty := true
-	lines := strings.Split(text, "\n")
-	unique := make(map[string]struct{})
-	for _, line := range lines {
-		option := strings.TrimSpace(strings.TrimRight(line, ".…"))
-		if option != "" {
-			if firstNonEmpty {
-				firstNonEmpty = false
-				if tmp, err := strconv.ParseInt(option, 10, 32); err == nil {
-					leadtime = time.Duration(tmp) * time.Hour
-					log.Printf("duration: %d\n", tmp)
-					continue
-				}
-			}
-
-			if _, ok := unique[option]; !ok {
-				options = append(options, option)
-
-				// Ensure option is unique
-				unique[option] = struct{}{}
-			}
-		}
-	}
-
-	return options, leadtime
 }
 
 func TimeIn(t time.Time) (time.Time, error) {
@@ -88,49 +41,6 @@ func TimeIn(t time.Time) (time.Time, error) {
 		t = t.In(loc)
 	}
 	return t, err
-}
-
-func (s *LunchHandler) NewLunch(ctx context.Context,
-	chatID int64,
-	msg string,
-	timestamp time.Time,
-	sender PollSender,
-) error {
-
-	options, hours := s.parseOptions(msg)
-	if hours <= 0 {
-		sender.SendMessage(ctx, "Thời gian không hợp lệ, cần lớn hơn 0")
-		return nil
-	}
-
-	if len(options) > 0 {
-		polls := sender.Chunks(options)
-		totalPolls := len(polls)
-
-		// Because Telegram Bot only support 10 minutes,
-		// so We need close poll manually
-		//
-		// https://core.telegram.org/bots/api#sendpoll
-		closeDate, _ := TimeIn(timestamp.Add(hours))
-		closeDateStr := closeDate.Format("15:04 02/01")
-
-		for idx, pollOptions := range polls {
-			question := fmt.Sprintf("%s Trưa nay ăn gì?", timestamp.Format("2006-01-02"))
-			if totalPolls > 1 {
-				question = fmt.Sprintf("[%d/%d] %s", idx+1, totalPolls, question)
-			}
-			question = fmt.Sprintf("%s\n\nChốt cơm lúc: %s", question, closeDateStr)
-
-			msgID, pollID, err := sender.SendPoll(ctx, question, pollOptions)
-			if err != nil {
-				return err
-			}
-
-			log.Printf("MessageID: %d, PollID: %s", msgID, pollID)
-		}
-	}
-
-	return nil
 }
 
 func (s *LunchHandler) process(ctx context.Context, update *tgbotapi.Update) error {
@@ -143,54 +53,93 @@ func (s *LunchHandler) process(ctx context.Context, update *tgbotapi.Update) err
 	}
 
 	if update.Message != nil {
-		chat := update.Message.Chat
-
 		log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
 		msg := update.Message
 		cmd := msg.Command()
 		switch cmd {
 		case "start":
-			if msg.Chat.IsPrivate() {
-				return nil
-			}
-			admins, err := s.bot.GetChatAdministrators(tgbotapi.ChatAdministratorsConfig{
-				ChatConfig: tgbotapi.ChatConfig{
-					ChatID: msg.Chat.ID,
-				},
-			})
-			if err != nil {
-				log.Printf("failed to get admins: %v", err)
-				return err
-			}
-
-			for _, admin := range admins {
-				if admin.CustomTitle == "chu-no" {
-				}
-				if admin.CustomTitle == "order" {
-				}
-			}
-			break
+			return s.handleStart(ctx, msg)
 		case "lunch":
-			arg := msg.CommandArguments()
-			timestamp := time.Unix(int64(msg.Date), 0)
-
-			return s.NewLunch(ctx, chat.ID, arg, timestamp, tgbot.NewPoll(s.bot, msg))
+			return s.handleLunch(ctx, msg)
 		}
 	}
 
 	return nil
 }
 
+func (s *LunchHandler) handleStart(ctx context.Context, msg *tgbotapi.Message) error {
+	if msg.Chat.IsPrivate() {
+		return nil
+	}
+	admins, err := s.bot.GetChatAdministrators(tgbotapi.ChatAdministratorsConfig{
+		ChatConfig: tgbotapi.ChatConfig{
+			ChatID: msg.Chat.ID,
+		},
+	})
+	if err != nil {
+		log.Printf("failed to get admins: %v", err)
+		return err
+	}
+
+	for _, admin := range admins {
+		if admin.CustomTitle == "chu-no" {
+		}
+		if admin.CustomTitle == "order" {
+		}
+	}
+	return nil
+}
+
+func (s *LunchHandler) handleLunch(ctx context.Context, msg *tgbotapi.Message) error {
+	arg := msg.CommandArguments()
+	timestamp := time.Unix(int64(msg.Date), 0)
+
+	var chunks []domain.PollChunk
+	err := s.groupRepo.UpdateGroupAndPoll(ctx, msg.Chat.ID,
+		func(group *domain.Group) (*domain.Group, *domain.Poll, error) {
+			if group != nil {
+				group.Name = msg.Chat.Title
+
+				poll, err := group.CreatePoll(arg, timestamp, 10)
+				if err != nil {
+					return nil, nil, err
+				}
+				poll.MessageID = msg.MessageID
+
+				chunks = poll.Chunks
+
+				return group, poll, nil
+			}
+
+			return nil, nil, nil
+		})
+
+	if err == nil {
+		for _, chunk := range chunks {
+			poll := tgbotapi.NewPoll(msg.Chat.ID, chunk.Question, chunk.Options...)
+			poll.IsAnonymous = false
+			poll.ReplyToMessageID = msg.MessageID
+			_, err = s.bot.Send(poll)
+		}
+	}
+	if errors.Is(err, &domain.InvalidLeadtimeError{}) {
+		reply := tgbotapi.NewMessage(msg.Chat.ID, err.Error())
+		reply.ReplyToMessageID = msg.MessageID
+		_, err = s.bot.Send(reply)
+	}
+
+	return err
+}
+
 func (s *LunchHandler) Handle() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer req.Body.Close()
 
-		var update tgbotapi.Update
-
 		// For debug request body
 		body := io.TeeReader(req.Body, os.Stdout)
 
+		var update tgbotapi.Update
 		err := json.NewDecoder(body).Decode(&update)
 		if err == nil {
 			err = s.process(req.Context(), &update)
