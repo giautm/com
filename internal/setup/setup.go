@@ -49,14 +49,14 @@ func SetupWith(ctx context.Context, config interface{}, l envconfig.Lookuper) (*
 	}
 	logger.Infow("provided", "config", config)
 
-	// Configure blob storage.
+	// Configure bot.
 	if provider, ok := config.(BotConfigProvider); ok {
 		logger.Info("configuring bot")
 
 		botCfg := provider.BotConfig()
-		bot, err := bot.BotFor(ctx, botCfg)
+		bot, err := bot.SetupBotFor(ctx, botCfg)
 		if err != nil {
-			return nil, fmt.Errorf("unable to connect to storage system: %v", err)
+			return nil, fmt.Errorf("unable to create bot: %v", err)
 		}
 
 		// Update serverEnv setup.
