@@ -2,17 +2,14 @@ package lunch
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"giautm.dev/com/internal/tgbot"
+	"giautm.dev/com/internal/bot"
+	"giautm.dev/com/internal/serverenv"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
@@ -38,18 +35,28 @@ type PollRepo interface {
 	Save(ctx context.Context, poll *Poll)
 }
 
-type LunchHandler struct {
-	pollRepo PollRepo
-
-	cfg *Config
-	bot *tgbotapi.BotAPI
+type Subscribe struct {
 }
 
-func NewHandler(cfg *Config, bot *tgbotapi.BotAPI) *LunchHandler {
+func (s *Subscribe) SubscribeForChat(chatID int, subscribe bool) {
+
+}
+
+type SubscribeRepo interface {
+	Update(ctx context.Context, userID int, updater func(sub *Subscribe) error) error
+}
+type LunchHandler struct {
+	pollRepo PollRepo
+	subRepo  SubscribeRepo
+	cfg      *Config
+	bot      bot.Bot
+}
+
+func NewHandler(cfg *Config, env *serverenv.ServerEnv) (*LunchHandler, error) {
 	return &LunchHandler{
-		bot: bot,
+		bot: env.Bot(),
 		cfg: cfg,
-	}
+	}, nil
 }
 
 func (s *LunchHandler) parseOptions(text string) (options []string, leadtime time.Duration) {
@@ -133,6 +140,18 @@ func (s *LunchHandler) NewLunch(ctx context.Context,
 	return nil
 }
 
+type ChatContext interface {
+	Context() context.Context
+
+	DeleteIncomeMessage() error
+	DeleteMessage(msgID int) error
+	ReplyMessage(message string) (msgID int, err error)
+	SendMessage(message string) (msgID int, err error)
+
+	ClosePoll(pollID string) error
+	SendPoll(question string, options []string) (pollID string, msgID int, err error)
+}
+
 func (s *LunchHandler) process(ctx context.Context, update *tgbotapi.Update) error {
 	if update.PollAnswer != nil {
 		// poll := update.PollAnswer
@@ -143,7 +162,7 @@ func (s *LunchHandler) process(ctx context.Context, update *tgbotapi.Update) err
 	}
 
 	if update.Message != nil {
-		chat := update.Message.Chat
+		// chat := update.Message.Chat
 
 		log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
@@ -154,55 +173,48 @@ func (s *LunchHandler) process(ctx context.Context, update *tgbotapi.Update) err
 			if msg.Chat.IsPrivate() {
 				return nil
 			}
-			admins, err := s.bot.GetChatAdministrators(tgbotapi.ChatAdministratorsConfig{
-				ChatConfig: tgbotapi.ChatConfig{
-					ChatID: msg.Chat.ID,
-				},
-			})
-			if err != nil {
-				log.Printf("failed to get admins: %v", err)
-				return err
-			}
+			// admins, err := s.bot.GetChatAdministrators(tgbotapi.ChatAdministratorsConfig{
+			// 	ChatConfig: tgbotapi.ChatConfig{
+			// 		ChatID: msg.Chat.ID,
+			// 	},
+			// })
+			// if err != nil {
+			// 	log.Printf("failed to get admins: %v", err)
+			// 	return err
+			// }
 
-			for _, admin := range admins {
-				if admin.CustomTitle == "chu-no" {
-				}
-				if admin.CustomTitle == "order" {
-				}
-			}
+			// for _, admin := range admins {
+			// 	if admin.CustomTitle == "chu-no" {
+			// 	}
+			// 	if admin.CustomTitle == "order" {
+			// 	}
+			// }
 			break
-		case "lunch":
-			arg := msg.CommandArguments()
-			timestamp := time.Unix(int64(msg.Date), 0)
+		// case "lunch":
+		// 	arg := msg.CommandArguments()
+		// 	timestamp := time.Unix(int64(msg.Date), 0)
 
-			return s.NewLunch(ctx, chat.ID, arg, timestamp, tgbot.NewPoll(s.bot, msg))
+		// 	return s.NewLunch(ctx, chat.ID, arg, timestamp, tgbot.NewPoll(s.bot, msg))
+		case "subscribe":
+
+			return nil
+		case "unsubscribe":
+			return nil
 		}
 	}
 
 	return nil
 }
 
-func (s *LunchHandler) Handle() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		defer req.Body.Close()
-
-		var update tgbotapi.Update
-
-		// For debug request body
-		body := io.TeeReader(req.Body, os.Stdout)
-
-		err := json.NewDecoder(body).Decode(&update)
-		if err == nil {
-			err = s.process(req.Context(), &update)
-		}
-
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, `{"status":"ERROR","message": "%v"}`, err.Error())
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, `{"status": "OK"}`)
+func (s *LunchHandler) Subscribe(chat ChatContext) error {
+	err := s.subRepo.Update(chat.Context(), 12, func(sub *Subscribe) error {
+		sub.SubscribeForChat(12, true)
+		return nil
 	})
+	if err == nil {
+		_, err = chat.ReplyMessage(`Đã thêm bạn vào danh sách thông báo thành công!
+Để huỷ nhắc cơm, gửi lệnh /unsubscribe`)
+	}
+
+	return err
 }
