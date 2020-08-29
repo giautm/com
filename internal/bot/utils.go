@@ -1,4 +1,4 @@
-package tgbot
+package bot
 
 func chunkBy(items []string, chunkSize int) (chunks [][]string) {
 	for chunkSize < len(items) {
