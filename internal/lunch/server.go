@@ -32,9 +32,7 @@ func (s *Server) Routes(ctx context.Context) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	bot := s.env.Bot()
-	mux.HandleFunc(bot.WebhookPath(), bot.UpdatesHandler(ctx, func() error {
-		return nil
-	}))
+	mux.HandleFunc(bot.WebhookPath(), bot.UpdatesHandler(ctx, s))
 	mux.HandleFunc("/run-schedule", s.handleSchedule(ctx))
 
 	return mux

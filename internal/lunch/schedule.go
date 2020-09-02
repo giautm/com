@@ -13,6 +13,6 @@ func (s *Server) handleSchedule(ctx context.Context) http.HandlerFunc {
 		defer cancel()
 
 		pollID := "123"
-		bot.ClosePoll(ctx, pollID)
+		bot.StopPoll(ctx, 0, pollID)
 	}
 }

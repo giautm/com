@@ -9,7 +9,7 @@ import (
 
 // ServerEnv represents latent environment configuration for servers in this application.
 type ServerEnv struct {
-	bot bot.Bot
+	bot bot.BotWebhook
 }
 
 // Option defines function types to modify the ServerEnv on creation.
@@ -33,14 +33,14 @@ func New(ctx context.Context, opts ...Option) *ServerEnv {
 // 	}
 // }
 
-func WithBot(p bot.Bot) Option {
+func WithBot(p bot.BotWebhook) Option {
 	return func(s *ServerEnv) *ServerEnv {
 		s.bot = p
 		return s
 	}
 }
 
-func (s *ServerEnv) Bot() bot.Bot {
+func (s *ServerEnv) Bot() bot.BotWebhook {
 	return s.bot
 }
 
