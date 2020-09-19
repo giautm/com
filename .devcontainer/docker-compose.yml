@@ -25,6 +25,9 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile
+      args:
+        # Update the VARIANT arg to pick a version of Go: 1, 1.15, 1.14
+        VARIANT: 1
     ports:
       - 8080:8080
     environment:
@@ -41,7 +44,7 @@ services:
       - ..:/workspace:cached
 
       # Uncomment the next line to use Docker from inside the container. See https://aka.ms/vscode-remote/samples/docker-from-docker-compose for details.
-      - /var/run/docker.sock:/var/run/docker.sock 
+      # - /var/run/docker.sock:/var/run/docker.sock 
 
     # Uncomment the next four lines if you will use a ptrace-based debugger like C++, Go, and Rust.
     cap_add:

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"giautm.dev/com/internal/lunch/domain"
 	"giautm.dev/com/internal/serverenv"
 )
 
@@ -12,6 +13,8 @@ import (
 type Server struct {
 	config *Config
 	env    *serverenv.ServerEnv
+
+	repo domain.MenuRepo
 }
 
 // NewServer makes a Server.
